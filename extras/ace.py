@@ -691,7 +691,7 @@ class BunnyAce:
 
         self._feed(index, length, speed)
 
-    def _retract(self, index, length, speed):
+    def _retract(self, index, length, speed, how_wait=None):
         def callback(self, response):
             if 'code' in response and response['code'] != 0:
                 self.log_error("ACE Error: " + response['msg'])
@@ -700,7 +700,10 @@ class BunnyAce:
         self.send_request(
             request={"method": "unwind_filament", "params": {"index": index, "length": length, "speed": speed}},
             callback=callback)
-        self.dwell(delay=(length / speed) + 0.1)
+        if how_wait is not None:
+            self.dwell(delay=(how_wait / speed) + 0.1)
+        else:
+            self.dwell(delay=(length / speed) + 0.1)
 
     cmd_ACE_RETRACT_help = 'Retracts filament back to ACE'
 
@@ -825,6 +828,7 @@ class BunnyAce:
                 while bool(sensor_toolhead.runout_helper.filament_present) and loop_count < 3:
                     self._extruder_move(-5, self.extruder_move_speed)
                     loop_count += 1
+                    self.dwell(delay=0.5)
                 # check if sensor is empty, pause and raise error if not
                 if sensor_toolhead.runout_helper.filament_present:
                     pause_resume = self.printer.lookup_object('pause_resume')
@@ -850,6 +854,7 @@ class BunnyAce:
                 loop_count = 0
                 while bool(sensor_splitter.runout_helper.filament_present) and loop_count < 3:
                     self._retract(was, self.toolchange_retract_length, self.retract_speed, 0)
+                    self.dwell(delay=0.1)
                 # splitter sensor is clear, stop retract
                 self._stop_feeding(was)
 
