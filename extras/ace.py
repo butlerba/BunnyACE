@@ -734,6 +734,17 @@ class BunnyAce:
             request={"method": "stop_feed_filament", "params": {"index": index}},
             callback=callback)
 
+    cmd_ACE_STOP_FEEDING_help = 'Stops feeding filament from ACE for tests'
+
+    def cmd_ACE_STOP_FEEDING(self, gcmd):
+        index = gcmd.get_int('INDEX')
+
+        if index < 0 or index >= 4:
+            raise gcmd.error('Wrong index')
+        
+        self._stop_feeding(index)
+        
+
     def _park_to_toolhead(self, tool):
 
         sensor_extruder = self.printer.lookup_object("filament_switch_sensor extruder_sensor", None)
