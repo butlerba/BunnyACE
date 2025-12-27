@@ -255,9 +255,6 @@ class BunnyAce:
             'ACE_FEED', self.cmd_ACE_FEED,
             desc=self.cmd_ACE_FEED_help)
         self.gcode.register_command(
-            'ACE_STOP_FEEDING', self.cmd_ACE_STOP_FEEDING,
-            desc=self.cmd_ACE_STOP_FEEDING_help)
-        self.gcode.register_command(
             'ACE_RETRACT', self.cmd_ACE_RETRACT,
             desc=self.cmd_ACE_RETRACT_help)
         self.gcode.register_command(
