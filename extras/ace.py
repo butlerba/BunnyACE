@@ -159,6 +159,7 @@ class BunnyAce:
         self.baud = config.getint('baud', 115200)
         extruder_sensor_pin = config.get('extruder_sensor_pin')
         toolhead_sensor_pin = config.get('toolhead_sensor_pin', None)
+        splitter_sensor_pin = config.get('splitter_sensor_pin', None)
         self.feed_speed = config.getint('feed_speed', 50)
         self.retract_speed = config.getint('retract_speed', 50)
         self.toolchange_retract_length = config.getint('toolchange_retract_length', 100)
@@ -170,7 +171,7 @@ class BunnyAce:
         self.poop_macros = config.get('poop_macros')
         self.cut_macros = config.get('cut_macros')
 
-        # self.extruder_to_blade_length = config.getint('extruder_to_blade', None)
+        self.extruder_to_blade_length = config.getint('extruder_to_blade_length', 20)
 
         self.max_dryer_temperature = config.getint('max_dryer_temperature', 55)
 
@@ -228,6 +229,8 @@ class BunnyAce:
         self._create_mmu_sensor(config, extruder_sensor_pin, "extruder_sensor", self.extruder_sensor_handler)
         if toolhead_sensor_pin is not None and len(toolhead_sensor_pin) >= 2:
             self._create_mmu_sensor(config, toolhead_sensor_pin, "toolhead_sensor")
+        if splitter_sensor_pin is not None and len(splitter_sensor_pin) >=2 :
+            self._create_mmu_sensor(config, splitter_sensor_pin, "splitter_sensor")
 
         self.printer.register_event_handler('klippy:ready', self._handle_ready)
         self.printer.register_event_handler('klippy:disconnect', self._handle_disconnect)
@@ -732,21 +735,10 @@ class BunnyAce:
             if 'code' in response and response['code'] != 0:
                 self.log_error("ACE Error: " + response['msg'])
                 return
-
+        
         self.send_request(
             request={"method": "stop_feed_filament", "params": {"index": index}},
             callback=callback)
-
-    cmd_ACE_STOP_FEEDING_help = 'Stops feeding filament from ACE for tests'
-
-    def cmd_ACE_STOP_FEEDING(self, gcmd):
-        index = gcmd.get_int('INDEX')
-
-        if index < 0 or index >= 4:
-            raise gcmd.error('Wrong index')
-        
-        self._stop_feeding(index)
-
 
     def _park_to_toolhead(self, tool):
 
@@ -763,13 +755,16 @@ class BunnyAce:
                    )
 
         while not bool(sensor_extruder.runout_helper.filament_present):
-            if (start_fast_feed and
-                    (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length//self.feed_speed)):
+            if (start_fast_feed and (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length//self.feed_speed)):
                 self._set_feeding_speed(tool, self.toolhead_homing_speed)
                 start_fast_feed = 0
 
             if self.is_ace_ready():
                 raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
+                pause_resume = self.printer.lookup_object('pause_resume')
+                pause_resume.send_pause_command()
+                self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
+                return
             self.dwell(delay=0.01)
 
         self._stop_feeding(tool)
@@ -777,8 +772,6 @@ class BunnyAce:
         self.wait_ace_ready()
 
         self._enable_feed_assist(tool)
-
-        self.save_variable('ace_filament_pos', "bowden", True)
 
         if 'toolhead_sensor' in self.endstops:
             toolhead_sensor = self.printer.lookup_object("filament_switch_sensor toolhead_sensor", None)
@@ -799,13 +792,15 @@ class BunnyAce:
 
     def cmd_ACE_CHANGE_TOOL(self, gcmd):
         tool = gcmd.get_int('TOOL')
-        sensor_extruder = self.printer.lookup_object("filament_switch_sensor %s" % "extruder_sensor", None)
+        sensor_extruder = self.printer.lookup_object("filament_switch_sensor extruder_sensor", None)
+        sensor_toolhead = self.printer.lookup_object("filament_switch_sensor toolhead_sensor", None)
+        sensor_splitter = self.printer.lookup_object("filament_switch_sensor splitter_sensor", None)
 
         if tool < -1 or tool >= 4:
             raise gcmd.error('Wrong tool')
 
         was = self.save_variables.allVariables.get('ace_current_index', -1)
-        if was == tool:
+        if was == tool and self.save_variables.allVariables.get('ace_filament_pos', "splitter") == "nozzle":
             self.log_always('ACE: Not changing tool, current index already ' + str(tool))
             return
 
@@ -823,22 +818,51 @@ class BunnyAce:
         if was != -1:
             self._disable_feed_assist(was)
             self.wait_ace_ready()
-            if self.save_variables.allVariables.get('ace_filament_pos', "spliter") == "nozzle":
+            if self.save_variables.allVariables.get('ace_filament_pos', "splitter") == "nozzle":
                 self.gcode.run_script_from_command(self.cut_macros)
                 self.save_variable('ace_filament_pos', "toolhead", True)
+                          
+            if self.save_variables.allVariables.get('ace_filament_pos', "splitter") == "toolhead":
+                loop_count = 0
+                # try to remove the filament from the sensor after the extruder
+                while bool(sensor_toolhead.runout_helper.filament_present) and loop_count < 3:
+                    self._extruder_move(-5, self.extruder_move_speed)
+                    loop_count += 1
+                # check if sensor is empty, pause and raise error if not
+                if sensor_toolhead.runout_helper.filament_present:
+                    pause_resume = self.printer.lookup_object('pause_resume')
+                    pause_resume.send_pause_command()
+                    self.log_error('ACE Error: Unable to unload filament from toolhead, manual check required. Print paused !!')
+                    return
 
-            if self.save_variables.allVariables.get('ace_filament_pos', "spliter") == "toolhead":
-                while bool(sensor_extruder.runout_helper.filament_present):
-                    self._extruder_move(-20, self.extruder_move_speed)
-                    self._retract(was, 20, self.retract_speed)
+                # continue unloading filament from extruder
+                loop_count = 0
+                while bool(sensor_extruder.runout_helper.filament_present) and loop_count < 4:
+                    self._extruder_move(-self.extruder_to_blade_length, self.extruder_move_speed)
+                    self._retract(was, self.extruder_to_blade_length, self.retract_speed)
                     self.wait_ace_ready()
+                    loop_count += 1
+                
+                # check if sensor is empty, pause and raise error if not
+                if sensor_extruder.runout_helper.filament_present:
+                    pause_resume = self.printer.lookup_object('pause_resume')
+                    pause_resume.send_pause_command()
+                    self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
+                    return
+                
+                loop_count = 0
+                while bool(sensor_splitter.runout_helper.filament_present) and loop_count < 3:
+                    self._retract(was, self.toolchange_retract_length, self.retract_speed, 0)
+                # splitter sensor is clear, stop retract
+                self._stop_feeding(was)
+
                 self.save_variable('ace_filament_pos', "bowden", True)
 
             self.wait_ace_ready()
 
             self._retract(was, self.toolchange_retract_length, self.retract_speed)
             self.wait_ace_ready()
-            self.save_variable('ace_filament_pos', "spliter", True)
+            self.save_variable('ace_filament_pos', "splitter", True)
 
             if tool != -1:
                 try:
