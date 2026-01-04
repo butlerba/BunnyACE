@@ -760,11 +760,15 @@ class BunnyAce:
                 start_fast_feed = 0
 
             if self.is_ace_ready():
-                raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
-                pause_resume = self.printer.lookup_object('pause_resume')
-                pause_resume.send_pause_command()
-                self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
-                return
+                #raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
+                if not bool(sensor_extruder.runout_helper.filament_present):
+                    start_fast_feed = self.reactor.monotonic()
+                    self._set_feeding_speed(tool, self.feed_speed)
+                else:
+                    pause_resume = self.printer.lookup_object('pause_resume')
+                    pause_resume.send_pause_command()
+                    self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
+                    return
             self.dwell(delay=0.01)
 
         self._stop_feeding(tool)
@@ -823,18 +827,19 @@ class BunnyAce:
                 self.save_variable('ace_filament_pos', "toolhead", True)
                           
             if self.save_variables.allVariables.get('ace_filament_pos', "splitter") == "toolhead":
-                loop_count = 0
-                # try to remove the filament from the sensor after the extruder
-                while bool(sensor_toolhead.runout_helper.filament_present) and loop_count < 3:
-                    self._extruder_move(-5, self.extruder_move_speed)
-                    loop_count += 1
-                    self.dwell(delay=0.5)
-                # check if sensor is empty, pause and raise error if not
-                if sensor_toolhead.runout_helper.filament_present:
-                    pause_resume = self.printer.lookup_object('pause_resume')
-                    pause_resume.send_pause_command()
-                    self.log_error('ACE Error: Unable to unload filament from toolhead, manual check required. Print paused !!')
-                    return
+                if sensor_toolhead is not None:
+                    # retract filament until toolhead sensor is clear
+                    loop_count = 0
+                    while bool(sensor_toolhead.runout_helper.filament_present) and loop_count < 5:
+                        self._extruder_move(-5, self.extruder_move_speed)
+                        loop_count += 1
+                        self.dwell(delay=0.5)
+                    # check if sensor is empty, pause and raise error if not
+                    if sensor_toolhead.runout_helper.filament_present:
+                        pause_resume = self.printer.lookup_object('pause_resume')
+                        pause_resume.send_pause_command()
+                        self.log_error('ACE Error: Unable to unload filament from toolhead, manual check required. Print paused !!')
+                        return
 
                 # continue unloading filament from extruder
                 loop_count = 0
@@ -858,11 +863,11 @@ class BunnyAce:
                 # splitter sensor is clear, stop retract
                 self._stop_feeding(was)
 
-                self.save_variable('ace_filament_pos', "bowden", True)
+                # self.save_variable('ace_filament_pos', "bowden", True)
 
             self.wait_ace_ready()
 
-            self._retract(was, self.toolchange_retract_length, self.retract_speed)
+            #self._retract(was, self.toolchange_retract_length, self.retract_speed)
             self.wait_ace_ready()
             self.save_variable('ace_filament_pos', "splitter", True)
 
