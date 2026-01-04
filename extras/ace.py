@@ -876,11 +876,15 @@ class BunnyAce:
                     self._park_to_toolhead(tool)
                 except AceException as e:
                     self.log_error(str(e))
+                    pause_resume = self.printer.lookup_object('pause_resume')
+                    pause_resume.send_pause_command()
         else:
             try:
                 self._park_to_toolhead(tool)
             except AceException as e:
                 self.log_error(str(e))
+                pause_resume = self.printer.lookup_object('pause_resume')
+                pause_resume.send_pause_command()
 
         gcode_move = self.printer.lookup_object('gcode_move')
         gcode_move.reset_last_position()
