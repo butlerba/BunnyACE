@@ -268,7 +268,7 @@ class BunnyAce:
             desc=self.cmd_ACE_ENDLESS_SPOOL_help
         )
         # Taken from https://github.com/GofranChang/KDragonACE/tree/develop
-        self.gcode.register.command(
+        self.gcode.register_command(
             'ACE_GET_CUR_INDEX', self.cmd_ACE_GET_CUR_INDEX,
             desc=self.cmd_ACE_GET_CUR_INDEX_help
         )
