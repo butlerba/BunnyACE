@@ -267,6 +267,15 @@ class BunnyAce:
             'ACE_ENDLESS_SPOOL', self.cmd_ACE_ENDLESS_SPOOL,
             desc=self.cmd_ACE_ENDLESS_SPOOL_help
         )
+        # Taken from https://github.com/GofranChang/KDragonACE/tree/develop
+        self.gcode.register.command(
+            'ACE_GET_CUR_INDEX', self.cmd_ACE_GET_CUR_INDEX,
+            desc=self.cmd_ACE_GET_CUR_INDEX_help
+        )
+        self.gcode.register_command(
+            'ACE_SET_STATUS', self.cmd_ACE_SET_STATUS,
+            desc=self.cmd_ACE_SET_STATUS_help
+        )
 
     def _handle_ready(self):
         self.toolhead = self.printer.lookup_object('toolhead')
@@ -579,7 +588,54 @@ class BunnyAce:
         query_endstops.register_endstop(mcu_endstop, share_name)
         self.endstops[name] = mcu_endstop
 
+    cmd_ACE_SET_STATUS_help = 'Set ACE status manully'
+    def cmd_ACE_SET_STATUS(self, gcmd):
+        # Get current status
+        current_index = self.variables.get('ace_current_index', -1)
+        current_pos = self.variables.get('ace_filament_pos', 'spliter')
 
+        # Parse parameters
+        index_raw = gcmd.get('INDEX', None)
+        if index_raw is None or index_raw == '':
+            index = current_index
+        else:
+            try:
+                index = int(index_raw)
+            except Exception:
+                raise gcmd.error('INDEX must be an integer in range -1..3')
+            if index < -1 or index > 3:
+                raise gcmd.error('Wrong index: expected -1..3')
+        # Parse position
+        position_raw = gcmd.get('POS', None)
+        if position_raw is None or position_raw == '':
+            position = current_pos
+        else:
+            position = str(position_raw).strip().lower()
+            valid_positions = {'spliter', 'bowden', 'toolhead', 'nozzle'}
+            if position not in valid_positions:
+                raise gcmd.error('Wrong POS: expected one of spliter|bowden|toolhead|nozzle')
+
+        # Validate parameters
+        if position in ('toolhead', 'nozzle') and index == -1:
+            raise gcmd.error('POS implies filament at toolhead/nozzle, require INDEX in 0..3')
+
+        # Check if status changed
+        if index == current_index and position == current_pos:
+            gcmd.respond_info('ACE: status unchanged')
+            return
+
+        # Save new status
+        self.variables['ace_filament_pos'] = position
+        self.variables['ace_current_index'] = index
+        self._save_to_disk()
+
+        gcmd.respond_info(f"ACE: status set INDEX={index} POS={position}")
+  
+
+    cmd_ACE_GET_CUR_INDEX_help = 'Get current tool index'
+    
+    def cmd_ACE_GET_CUR_INDEX(self, gcmd):
+        self.gcode.respond_info('ACE Current index {}'.format(self.variables['ace_current_index']))
 
     cmd_ACE_START_DRYING_help = 'Starts ACE Pro dryer'
 
@@ -753,7 +809,7 @@ class BunnyAce:
                    self.feed_speed,
                    0
                    )
-
+        loop = 0
         while not bool(sensor_extruder.runout_helper.filament_present):
             if (start_fast_feed and (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length//self.feed_speed)):
                 self._set_feeding_speed(tool, self.toolhead_homing_speed)
@@ -761,14 +817,12 @@ class BunnyAce:
 
             if self.is_ace_ready():
                 #raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
-                if not bool(sensor_extruder.runout_helper.filament_present):
+                if not bool(sensor_extruder.runout_helper.filament_present) and (loop < 2):
                     start_fast_feed = self.reactor.monotonic()
                     self._set_feeding_speed(tool, self.feed_speed)
+                    loop += 1
                 else:
-                    pause_resume = self.printer.lookup_object('pause_resume')
-                    pause_resume.send_pause_command()
-                    self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
-                    return
+                    raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
             self.dwell(delay=0.01)
 
         self._stop_feeding(tool)
