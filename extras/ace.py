@@ -910,7 +910,7 @@ class BunnyAce:
                 # splitter sensor is clear, stop retract
                 self._stop_feeding(was)
 
-                # self.save_variable('ace_filament_pos', "bowden", True)
+                self.save_variable('ace_filament_pos', "bowden", True)
 
             self.wait_ace_ready()
 
