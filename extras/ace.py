@@ -809,20 +809,13 @@ class BunnyAce:
                    self.feed_speed,
                    0
                    )
-        loop = 0
         while not bool(sensor_extruder.runout_helper.filament_present):
             if (start_fast_feed and (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length//self.feed_speed)):
                 self._set_feeding_speed(tool, self.toolhead_homing_speed)
                 start_fast_feed = 0
 
             if self.is_ace_ready():
-                #raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
-                if not bool(sensor_extruder.runout_helper.filament_present) and (loop < 2):
-                    start_fast_feed = self.reactor.monotonic()
-                    self._set_feeding_speed(tool, self.feed_speed)
-                    loop += 1
-                else:
-                    raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
+                raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
             self.dwell(delay=0.01)
 
         self._stop_feeding(tool)
