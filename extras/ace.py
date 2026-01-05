@@ -906,7 +906,8 @@ class BunnyAce:
                 loop_count = 0
                 while bool(sensor_splitter.runout_helper.filament_present) and loop_count < 3:
                     self._retract(was, self.toolchange_retract_length, self.retract_speed, 0)
-                    self.dwell(delay=0.1)
+                    self.dwell(delay=0.5)
+                    loop_count += 1
                 # splitter sensor is clear, stop retract
                 self._stop_feeding(was)
 
