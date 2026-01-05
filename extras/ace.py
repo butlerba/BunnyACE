@@ -891,6 +891,7 @@ class BunnyAce:
                 # continue unloading filament from extruder
                 loop_count = 0
                 while bool(sensor_extruder.runout_helper.filament_present) and loop_count < 4:
+                    self.log_always('ACE: Filament still in extruder, retracting. Count:' + str(loop_count))
                     self._extruder_move(-self.extruder_to_blade_length, self.extruder_move_speed)
                     self._retract(was, self.extruder_to_blade_length, self.retract_speed)
                     self.wait_ace_ready()
@@ -905,9 +906,9 @@ class BunnyAce:
                 
                 loop_count = 0
                 while bool(sensor_splitter.runout_helper.filament_present) and loop_count < 3:
-                    logging.info('ACE: Filament still in splitter, retracting. Count:' + str(loop_count))
+                    self.log_always('ACE: Filament still in splitter, retracting. Count:' + str(loop_count))
                     self._retract(was, self.toolchange_retract_length, self.retract_speed, 0)
-                    self.dwell(delay=0.5)
+                    self.wait_ace_ready()
                     loop_count += 1
                 # splitter sensor is clear, stop retract
                 self._stop_feeding(was)
