@@ -44,8 +44,9 @@ class MmuRunoutHelper:
 
     def _runout_event_handler(self, eventtime):
         # Pausing from inside an event requires that the pause portion of pause_resume execute immediately.
-        pause_resume = self.printer.lookup_object('pause_resume')
-        pause_resume.send_pause_command()
+        #pause_resume = self.printer.lookup_object('pause_resume')
+        #pause_resume.send_pause_command()
+        self.gcode.run_script_from_command('PAUSE')
         self._exec_gcode("%s EVENTTIME=%s" % (self.runout_gcode, eventtime))
 
     def _exec_gcode(self, command):
@@ -548,8 +549,9 @@ class BunnyAce:
         if (not is_filament_present) and self._info['slots'][was_index]['status'] == 'empty' and is_printing:
             ace_material = self.save_variables.allVariables.get('ace_gate_type',['', '', '', ''])
             self.save_variable('ace_current_index', -1, True)
-            pause_resume = self.printer.lookup_object('pause_resume')
-            pause_resume.send_pause_command()
+            #pause_resume = self.printer.lookup_object('pause_resume')
+            #pause_resume.send_pause_command()
+            self.gcode.run_script_from_command('PAUSE')
 
             if self.save_variables.allVariables.get('ace_endless_spool', False):
                 self.log_always('Endless spool')
@@ -561,7 +563,8 @@ class BunnyAce:
                     return
                 self.log_always('{2}Change to spool: %s{0}' % spools[0]["index"], True)
                 self.gcode.run_script_from_command(f'T{spools[0]["index"]}')
-                pause_resume.send_resume_command()
+                #pause_resume.send_resume_command()
+                self.gcode.run_script_from_command('RESUME')
             else:
                 self.log_warning('Filament runout! Endless spool disabled')
 
@@ -883,8 +886,9 @@ class BunnyAce:
                         self.dwell(delay=0.5)
                     # check if sensor is empty, pause and raise error if not
                     if sensor_toolhead.runout_helper.filament_present:
-                        pause_resume = self.printer.lookup_object('pause_resume')
-                        pause_resume.send_pause_command()
+                        #pause_resume = self.printer.lookup_object('pause_resume')
+                        #pause_resume.send_pause_command()
+                        self.gcode.run_script_from_command('PAUSE')
                         self.log_error('ACE Error: Unable to unload filament from toolhead, manual check required. Print paused !!')
                         return
 
@@ -899,8 +903,9 @@ class BunnyAce:
                 
                 # check if sensor is empty, pause and raise error if not
                 if sensor_extruder.runout_helper.filament_present:
-                    pause_resume = self.printer.lookup_object('pause_resume')
-                    pause_resume.send_pause_command()
+                    #pause_resume = self.printer.lookup_object('pause_resume')
+                    #pause_resume.send_pause_command()
+                    self.gcode.run_script_from_command('PAUSE')
                     self.log_error('ACE Error: Unable to unload filament from extruder, manual check required. Print paused !!')
                     return
                 
@@ -926,15 +931,17 @@ class BunnyAce:
                     self._park_to_toolhead(tool)
                 except AceException as e:
                     self.log_error(str(e))
-                    pause_resume = self.printer.lookup_object('pause_resume')
-                    pause_resume.send_pause_command()
+                    #pause_resume = self.printer.lookup_object('pause_resume')
+                    #pause_resume.send_pause_command()
+                    self.gcode.run_script_from_command('PAUSE')
         else:
             try:
                 self._park_to_toolhead(tool)
             except AceException as e:
                 self.log_error(str(e))
-                pause_resume = self.printer.lookup_object('pause_resume')
-                pause_resume.send_pause_command()
+                #pause_resume = self.printer.lookup_object('pause_resume')
+                #pause_resume.send_pause_command()
+                self.gcode.run_script_from_command('PAUSE')
 
         gcode_move = self.printer.lookup_object('gcode_move')
         gcode_move.reset_last_position()
