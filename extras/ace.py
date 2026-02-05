@@ -823,7 +823,7 @@ class BunnyAce:
 
             if self.is_ace_ready():
                 raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
-            self.dwell(delay=0.01)
+            self.dwell(delay=0.05)
 
         self._stop_feeding(tool)
 
