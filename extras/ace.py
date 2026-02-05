@@ -812,7 +812,12 @@ class BunnyAce:
                    self.feed_speed,
                    0
                    )
+        self.log_always('ACE: start_fast_feed:' + str(start_fast_feed))
+        self.log_always('ACE: feed length:' + str(self.toolchange_feed_length + self.toolhead_homing_max))
+        self.log_always('ACE: feed speed:' + str(self.feed_speed))
+        self.log_always('ACE: monotonic:' + str(self.reactor.monotonic()))
         while not bool(sensor_extruder.runout_helper.filament_present):
+            self.log_always('ACE: monotonic:' + str(self.reactor.monotonic()))
             if (start_fast_feed and (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length//self.feed_speed)):
                 self._set_feeding_speed(tool, self.toolhead_homing_speed)
                 start_fast_feed = 0
