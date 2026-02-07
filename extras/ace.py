@@ -806,18 +806,19 @@ class BunnyAce:
         self.wait_ace_ready()
 
         self.save_variable('ace_filament_pos', "bowden", True)
-        start_fast_feed = self.reactor.monotonic()
+        self._set_feeding_speed(tool, self.feed_speed)
         self._feed(tool,
                    self.toolchange_feed_length,
                    self.feed_speed,
-                   0
+                     how_wait=self.toolchange_feed_length
                    )
+        self.wait_ace_ready()
         loop = 0
         while not bool(sensor_extruder.runout_helper.filament_present):
             self._set_feeding_speed(tool, self.toolhead_homing_speed)
-            self._feed(tool, 5, self.toolhead_homing_speed)
+            self._feed(tool, 10, self.toolhead_homing_speed)
             loop += 1
-            self.dwell(delay=0.05)
+            self.dwell(delay=0.01)
             if loop > 100:
                 self.log_error('ACE Error: Unable to feed filament to toolhead, manual check required. Print paused !!')
                 #pause_resume = self.printer.lookup_object('pause_resume')
