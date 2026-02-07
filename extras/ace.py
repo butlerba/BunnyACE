@@ -814,17 +814,22 @@ class BunnyAce:
                    )
         self.wait_ace_ready()
         loop = 0
-        while not bool(sensor_extruder.runout_helper.filament_present):
+        self.log_always('ACE: Feeding filament to extruder, filament present: ' + str(bool(sensor_extruder.runout_helper.filament_present)))
+        if not bool(sensor_extruder.runout_helper.filament_present):
             self._set_feeding_speed(tool, self.toolhead_homing_speed)
-            self._feed(tool, 10, self.toolhead_homing_speed)
-            loop += 1
-            self.dwell(delay=0.01)
-            if loop > 100:
-                self.log_error('ACE Error: Unable to feed filament to toolhead, manual check required. Print paused !!')
-                #pause_resume = self.printer.lookup_object('pause_resume')
-                #pause_resume.send_pause_command()
-                self.gcode.run_script_from_command('PAUSE')
-                return
+            while not bool(sensor_extruder.runout_helper.filament_present):
+                self._feed(tool, 10, self.toolhead_homing_speed)
+                self.wait_ace_ready()
+                loop += 1
+                if bool(sensor_extruder.runout_helper.filament_present):
+                    break
+                self.dwell(delay=0.01)
+                if loop > 100:
+                    self.log_error('ACE Error: Unable to feed filament to toolhead, manual check required. Print paused !!')
+                    #pause_resume = self.printer.lookup_object('pause_resume')
+                    #pause_resume.send_pause_command()
+                    self.gcode.run_script_from_command('PAUSE')
+                    return
 
         self._stop_feeding(tool)
 
