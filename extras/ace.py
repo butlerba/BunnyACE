@@ -816,14 +816,18 @@ class BunnyAce:
         self.log_always('ACE: feed length:' + str(self.toolchange_feed_length + self.toolhead_homing_max))
         self.log_always('ACE: feed speed:' + str(self.feed_speed))
         self.log_always('ACE: monotonic:' + str(self.reactor.monotonic()))
+        loop = 0
         while not bool(sensor_extruder.runout_helper.filament_present):
-            if (start_fast_feed and (self.reactor.monotonic() - start_fast_feed) >= (self.toolchange_feed_length*0.75)):
-                self._set_feeding_speed(tool, self.toolhead_homing_speed)
-                start_fast_feed = 0
-
-            if self.is_ace_ready():
-                raise AceException('ACE Error: Load failed: Failed to reach toolhead sensor')
+            self._set_feeding_speed(tool, self.toolhead_homing_speed)
+            self._feed(tool, 5, self.toolhead_homing_speed)
+            loop += 1
             self.dwell(delay=0.05)
+            if loop > 100:
+                self.log_error('ACE Error: Unable to feed filament to toolhead, manual check required. Print paused !!')
+                #pause_resume = self.printer.lookup_object('pause_resume')
+                #pause_resume.send_pause_command()
+                self.gcode.run_script_from_command('PAUSE')
+                return
 
         self._stop_feeding(tool)
 
