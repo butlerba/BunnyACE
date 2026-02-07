@@ -808,14 +808,10 @@ class BunnyAce:
         self.save_variable('ace_filament_pos', "bowden", True)
         start_fast_feed = self.reactor.monotonic()
         self._feed(tool,
-                   self.toolchange_feed_length + self.toolhead_homing_max,
+                   self.toolchange_feed_length,
                    self.feed_speed,
                    0
                    )
-        self.log_always('ACE: start_fast_feed:' + str(start_fast_feed))
-        self.log_always('ACE: feed length:' + str(self.toolchange_feed_length + self.toolhead_homing_max))
-        self.log_always('ACE: feed speed:' + str(self.feed_speed))
-        self.log_always('ACE: monotonic:' + str(self.reactor.monotonic()))
         loop = 0
         while not bool(sensor_extruder.runout_helper.filament_present):
             self._set_feeding_speed(tool, self.toolhead_homing_speed)
